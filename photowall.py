@@ -1,5 +1,7 @@
 import sys
 import os
+import math
+
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -10,9 +12,34 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QGridLayout,
     QSpinBox,
+    QComboBox,
 )
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QSize
+
+
+class PhotoLabel(QLabel):
+    def __init__(self):
+        super().__init__()
+        self.orientation = "Paysage"
+        self.setAlignment(Qt.AlignCenter)
+        self.setStyleSheet(
+            "background-color: black; color: white; border: 2px solid gray;"
+        )
+
+    def set_orientation(self, orientation):
+        self.orientation = orientation
+        self.updateGeometry()
+
+    def sizeHint(self):
+        if self.orientation == "Portrait":
+            return QSize(300, 450)
+        return QSize(450, 300)
+
+    def heightForWidth(self, width):
+        if self.orientation == "Portrait":
+            return int(width * 1.5)
+        return int(width * 2 / 3)
 
 
 class ZonePhoto(QWidget):
@@ -23,11 +50,9 @@ class ZonePhoto(QWidget):
         self.photos = []
         self.index = 0
 
-        self.image = QLabel(f"Zone {numero}\nAucun dossier sélectionné")
-        self.image.setAlignment(Qt.AlignCenter)
-        self.image.setMinimumSize(300, 200)
-        self.image.setStyleSheet(
-            "background-color: black; color: white; border: 2px solid gray;"
+        self.image = PhotoLabel()
+        self.image.setText(
+            f"Zone {numero}\nAucun dossier sélectionné"
         )
 
         self.bouton_dossier = QPushButton("Choisir un dossier")
@@ -39,9 +64,16 @@ class ZonePhoto(QWidget):
         self.vitesse.setSuffix(" secondes")
         self.vitesse.valueChanged.connect(self.changer_vitesse)
 
+        self.orientation = QComboBox()
+        self.orientation.addItems(["Paysage", "Portrait"])
+        self.orientation.currentTextChanged.connect(
+            self.changer_orientation
+        )
+
         commandes = QHBoxLayout()
         commandes.addWidget(self.bouton_dossier)
         commandes.addWidget(self.vitesse)
+        commandes.addWidget(self.orientation)
 
         layout = QVBoxLayout()
         layout.addWidget(self.image)
@@ -62,7 +94,13 @@ class ZonePhoto(QWidget):
         if not dossier:
             return
 
-        extensions = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
+        extensions = (
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".bmp",
+            ".webp"
+        )
 
         self.photos = [
             os.path.join(dossier, fichier)
@@ -76,7 +114,9 @@ class ZonePhoto(QWidget):
         if self.photos:
             self.afficher_photo()
         else:
-            self.image.setText("Aucune photo trouvée dans ce dossier")
+            self.image.setText(
+                "Aucune photo trouvée dans ce dossier"
+            )
 
     def afficher_photo(self):
         if not self.photos:
@@ -100,7 +140,21 @@ class ZonePhoto(QWidget):
         self.afficher_photo()
 
     def changer_vitesse(self):
-        self.timer.setInterval(self.vitesse.value() * 1000)
+        self.timer.setInterval(
+            self.vitesse.value() * 1000
+        )
+
+    def changer_orientation(self, orientation):
+        self.image.set_orientation(orientation)
+
+        if orientation == "Portrait":
+            self.image.setMinimumSize(200, 300)
+            self.image.setMaximumSize(500, 750)
+        else:
+            self.image.setMinimumSize(300, 200)
+            self.image.setMaximumSize(750, 500)
+
+        self.afficher_photo()
 
     def resizeEvent(self, event):
         self.afficher_photo()
@@ -112,7 +166,9 @@ class PhotoWall(QWidget):
         super().__init__()
 
         self.setWindowTitle("PhotoWall")
-        self.resize(1200, 750)
+        self.resize(1200, 800)
+
+        self.zones = []
 
         titre = QLabel("PhotoWall")
         titre.setAlignment(Qt.AlignCenter)
@@ -120,23 +176,69 @@ class PhotoWall(QWidget):
             "font-size: 28px; font-weight: bold;"
         )
 
+        texte_nombre = QLabel("Nombre de zones :")
+
+        self.nombre_zones = QSpinBox()
+        self.nombre_zones.setRange(1, 9)
+        self.nombre_zones.setValue(2)
+
+        bouton_appliquer = QPushButton("Appliquer")
+        bouton_appliquer.clicked.connect(
+            self.creer_zones
+        )
+
+        commandes_generales = QHBoxLayout()
+        commandes_generales.addWidget(texte_nombre)
+        commandes_generales.addWidget(self.nombre_zones)
+        commandes_generales.addWidget(bouton_appliquer)
+        commandes_generales.addStretch()
+
         self.grille = QGridLayout()
 
-        self.zone1 = ZonePhoto(1)
-        self.zone2 = ZonePhoto(2)
-
-        self.grille.addWidget(self.zone1, 0, 0)
-        self.grille.addWidget(self.zone2, 0, 1)
-
         bouton_plein_ecran = QPushButton("Plein écran")
-        bouton_plein_ecran.clicked.connect(self.plein_ecran)
+        bouton_plein_ecran.clicked.connect(
+            self.plein_ecran
+        )
 
         layout = QVBoxLayout()
         layout.addWidget(titre)
+        layout.addLayout(commandes_generales)
         layout.addLayout(self.grille)
         layout.addWidget(bouton_plein_ecran)
 
         self.setLayout(layout)
+
+        self.creer_zones()
+
+    def vider_grille(self):
+        while self.grille.count():
+            item = self.grille.takeAt(0)
+            widget = item.widget()
+
+            if widget is not None:
+                widget.deleteLater()
+
+        self.zones.clear()
+
+    def creer_zones(self):
+        self.vider_grille()
+
+        nombre = self.nombre_zones.value()
+
+        colonnes = math.ceil(math.sqrt(nombre))
+
+        for i in range(nombre):
+            zone = ZonePhoto(i + 1)
+            self.zones.append(zone)
+
+            ligne = i // colonnes
+            colonne = i % colonnes
+
+            self.grille.addWidget(
+                zone,
+                ligne,
+                colonne
+            )
 
     def plein_ecran(self):
         if self.isFullScreen():
