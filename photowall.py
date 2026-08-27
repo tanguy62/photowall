@@ -744,6 +744,10 @@ class PhotoWall(QWidget):
 app = QApplication(sys.argv)
 
 fenetre = PhotoWall()
+
+if os.path.exists(CONFIG_FILE):
+    fenetre.charger_configuration()
+
 fenetre.show()
 
 sys.exit(app.exec())
