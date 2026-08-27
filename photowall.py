@@ -21,10 +21,14 @@ from PySide6.QtCore import Qt, QTimer, QSize
 class PhotoLabel(QLabel):
     def __init__(self):
         super().__init__()
+
         self.orientation = "Paysage"
+
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet(
-            "background-color: black; color: white; border: 2px solid gray;"
+            "background-color: black;"
+            "color: white;"
+            "border: 2px solid gray;"
         )
 
     def set_orientation(self, orientation):
@@ -34,12 +38,14 @@ class PhotoLabel(QLabel):
     def sizeHint(self):
         if self.orientation == "Portrait":
             return QSize(300, 450)
+
         return QSize(450, 300)
 
-    def heightForWidth(self, width):
+    def heightForWidth(self, largeur):
         if self.orientation == "Portrait":
-            return int(width * 1.5)
-        return int(width * 2 / 3)
+            return int(largeur * 1.5)
+
+        return int(largeur * 2 / 3)
 
 
 class ZonePhoto(QWidget):
@@ -75,15 +81,20 @@ class ZonePhoto(QWidget):
         commandes.addWidget(self.vitesse)
         commandes.addWidget(self.orientation)
 
+        self.commandes_widget = QWidget()
+        self.commandes_widget.setLayout(commandes)
+
         layout = QVBoxLayout()
         layout.addWidget(self.image)
-        layout.addLayout(commandes)
+        layout.addWidget(self.commandes_widget)
 
         self.setLayout(layout)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.photo_suivante)
         self.timer.start(5000)
+
+        self.changer_orientation("Paysage")
 
     def choisir_dossier(self):
         dossier = QFileDialog.getExistingDirectory(
@@ -99,7 +110,7 @@ class ZonePhoto(QWidget):
             ".jpeg",
             ".png",
             ".bmp",
-            ".webp"
+            ".webp",
         )
 
         self.photos = [
@@ -114,6 +125,7 @@ class ZonePhoto(QWidget):
         if self.photos:
             self.afficher_photo()
         else:
+            self.image.clear()
             self.image.setText(
                 "Aucune photo trouvée dans ce dossier"
             )
@@ -124,10 +136,13 @@ class ZonePhoto(QWidget):
 
         pixmap = QPixmap(self.photos[self.index])
 
+        if pixmap.isNull():
+            return
+
         pixmap = pixmap.scaled(
             self.image.size(),
             Qt.KeepAspectRatio,
-            Qt.SmoothTransformation
+            Qt.SmoothTransformation,
         )
 
         self.image.setPixmap(pixmap)
@@ -148,13 +163,20 @@ class ZonePhoto(QWidget):
         self.image.set_orientation(orientation)
 
         if orientation == "Portrait":
-            self.image.setMinimumSize(200, 300)
-            self.image.setMaximumSize(500, 750)
+            largeur = 240
+            hauteur = 360
         else:
-            self.image.setMinimumSize(300, 200)
-            self.image.setMaximumSize(750, 500)
+            largeur = 360
+            hauteur = 240
 
+        self.image.setMinimumSize(largeur, hauteur)
+        self.image.setMaximumSize(largeur, hauteur)
+
+        self.adjustSize()
         self.afficher_photo()
+
+    def mode_affichage(self, actif):
+        self.commandes_widget.setVisible(not actif)
 
     def resizeEvent(self, event):
         self.afficher_photo()
@@ -169,11 +191,13 @@ class PhotoWall(QWidget):
         self.resize(1200, 800)
 
         self.zones = []
+        self.mode_diaporama = False
 
-        titre = QLabel("PhotoWall")
-        titre.setAlignment(Qt.AlignCenter)
-        titre.setStyleSheet(
-            "font-size: 28px; font-weight: bold;"
+        self.titre = QLabel("PhotoWall")
+        self.titre.setAlignment(Qt.AlignCenter)
+        self.titre.setStyleSheet(
+            "font-size: 28px;"
+            "font-weight: bold;"
         )
 
         texte_nombre = QLabel("Nombre de zones :")
@@ -182,29 +206,46 @@ class PhotoWall(QWidget):
         self.nombre_zones.setRange(1, 9)
         self.nombre_zones.setValue(2)
 
-        bouton_appliquer = QPushButton("Appliquer")
-        bouton_appliquer.clicked.connect(
+        self.bouton_appliquer = QPushButton("Appliquer")
+        self.bouton_appliquer.clicked.connect(
             self.creer_zones
+        )
+
+        self.bouton_mode = QPushButton(
+            "Passer en mode Affichage"
+        )
+        self.bouton_mode.clicked.connect(
+            self.basculer_mode
         )
 
         commandes_generales = QHBoxLayout()
         commandes_generales.addWidget(texte_nombre)
         commandes_generales.addWidget(self.nombre_zones)
-        commandes_generales.addWidget(bouton_appliquer)
+        commandes_generales.addWidget(self.bouton_appliquer)
         commandes_generales.addStretch()
+        commandes_generales.addWidget(self.bouton_mode)
+
+        self.commandes_generales_widget = QWidget()
+        self.commandes_generales_widget.setLayout(
+            commandes_generales
+        )
 
         self.grille = QGridLayout()
 
-        bouton_plein_ecran = QPushButton("Plein écran")
-        bouton_plein_ecran.clicked.connect(
+        self.bouton_plein_ecran = QPushButton(
+            "Plein écran"
+        )
+        self.bouton_plein_ecran.clicked.connect(
             self.plein_ecran
         )
 
         layout = QVBoxLayout()
-        layout.addWidget(titre)
-        layout.addLayout(commandes_generales)
+        layout.addWidget(self.titre)
+        layout.addWidget(
+            self.commandes_generales_widget
+        )
         layout.addLayout(self.grille)
-        layout.addWidget(bouton_plein_ecran)
+        layout.addWidget(self.bouton_plein_ecran)
 
         self.setLayout(layout)
 
@@ -224,7 +265,6 @@ class PhotoWall(QWidget):
         self.vider_grille()
 
         nombre = self.nombre_zones.value()
-
         colonnes = math.ceil(math.sqrt(nombre))
 
         for i in range(nombre):
@@ -237,14 +277,64 @@ class PhotoWall(QWidget):
             self.grille.addWidget(
                 zone,
                 ligne,
-                colonne
+                colonne,
+                alignment=Qt.AlignCenter,
             )
+
+    def basculer_mode(self):
+        self.mode_diaporama = not self.mode_diaporama
+
+        for zone in self.zones:
+            zone.mode_affichage(self.mode_diaporama)
+
+        if self.mode_diaporama:
+            self.titre.hide()
+            self.commandes_generales_widget.hide()
+            self.bouton_plein_ecran.hide()
+
+            self.setStyleSheet(
+                "background-color: black;"
+            )
+
+            self.showFullScreen()
+
+        else:
+            self.titre.show()
+            self.commandes_generales_widget.show()
+            self.bouton_plein_ecran.show()
+
+            self.setStyleSheet("")
+
+            self.showNormal()
 
     def plein_ecran(self):
         if self.isFullScreen():
             self.showNormal()
         else:
             self.showFullScreen()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            if self.mode_diaporama:
+                self.mode_diaporama = False
+
+                for zone in self.zones:
+                    zone.mode_affichage(False)
+
+                self.titre.show()
+                self.commandes_generales_widget.show()
+                self.bouton_plein_ecran.show()
+
+                self.setStyleSheet("")
+                self.showNormal()
+
+                return
+
+            if self.isFullScreen():
+                self.showNormal()
+                return
+
+        super().keyPressEvent(event)
 
 
 app = QApplication(sys.argv)
