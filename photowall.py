@@ -9,13 +9,15 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QTimer, QPoint, QRect
 
+if getattr(sys, "frozen", False):
+    DOSSIER_PROGRAMME = os.path.dirname(sys.executable)
+else:
+    DOSSIER_PROGRAMME = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
+    DOSSIER_PROGRAMME,
     "photowall_config.json"
 )
-
-
 class ZonePhoto(QWidget):
     def __init__(self, numero, parent=None):
         super().__init__(parent)
